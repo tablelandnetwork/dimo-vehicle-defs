@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# VehicleId.sol
+cat artifacts/contracts/VehicleId.sol/VehicleId.json | jq -r '.deployedBytecode' > deployedBytecode.bin
+ls -l deployedBytecode.bin
+rm deployedBytecode.bin

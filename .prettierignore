@@ -1,0 +1,10 @@
+node_modules
+typechain-types
+artifacts
+cache
+coverage*
+gasReporterOutput.json
+*.d.ts
+network.js
+hardhat.config.d.ts
+scripts/*.d.ts
