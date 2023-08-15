@@ -6,7 +6,7 @@ export async function loadCSV<T>(
   headers: string[],
   cast: (row: any) => T,
   offset: number = 0,
-  limit?: number,
+  limit?: number
 ): Promise<T[]> {
   const parser = fs.createReadStream(filename).pipe(
     parse({

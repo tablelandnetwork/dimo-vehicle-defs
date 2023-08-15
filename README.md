@@ -13,7 +13,16 @@
 
 # Background
 
-This is demo of how one could host the DIMO Vehicle Definitions table from the DIMO VehicleId NFT contract using Tableland.
+This is a demo hosting the DIMO Vehicle Definitions table from the DIMO `VehicleId` ERC721 contract using Tableland. The table is owned by and written to by the `VehicleId` contract. `VehicleId` tokens represent user vehicles and are associated with a vehicle definition (e.g. 2011 Toyota Tacoma). The crux of the problem is how to ensure that a given vehicle definition exists when a new `VehicleId` is minted from the contract.
+
+We show two potential solutions:
+
+1. [`VehicleId`](./contracts/VehicleId.sol) simply increments a counter whenever a new vehicle definition is added. When minting a `VehicleId`, the user passes in an integer that represents the Tableland row ID (auto-incrementing primary key) of a vehicle definition. Since the table is append only, if this integer is greater than the current counter, we know it’s invalid and the transaction is rejected.
+2. [`VehicleId2`](./contracts/VehicleId2.sol) leverages a (somewhat experimental) on-chain [dynamic merkle tree](https://ethresear.ch/t/efficient-on-chain-dynamic-merkle-tree/11054) to track a root hash that represents the entire off-chain vehicle definitions table. When minting a `VehicleId`, the user passes in the Tableland row ID (auto-incrementing primary key) of a vehicle definition, a hash of the actual vehicle definition values (make, model, year, etc.), and a merkle inclusion proof that the vehicle definition actually exists in the off-chain table. The contract only needs to store a single `bytes32` representing the root hash. This approach is more heavy-handed, but ensures a tighter coupling between the `VehicleId` and vehicle definition.
+
+   The downside of this method is that the proof needs to be generated off-chain from the entire table state. Ideally, `go-tableland` should have an API endpoint that allows users and apps to fetch inclusion proofs for a given row.
+
+   The advantage of this approach is that, if `go-tableland` could provide inclusion proofs, you would not have to trust it because verification happens on-chain against a root hash that is dynamically updated when new rows are added (remember, in this case the table can only be written to by the contract).
 
 # Development
 
