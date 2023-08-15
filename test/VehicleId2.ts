@@ -40,28 +40,6 @@ describe("VehicleId2", function () {
     db = getDatabase(accounts[0]);
     validator = new Validator(db.config);
 
-    // Setup sample data and merklized table
-    data = await loadCSV(
-      path.resolve(__dirname, "./testdata/device_definitions.csv"),
-      [
-        "device_type_id",
-        "make",
-        "make_token_id",
-        "oem_platform_name",
-        "model",
-        "year",
-        "metadata",
-        "model_style",
-        "model_sub_style",
-      ],
-      (row: any) => {
-        return Vehicle.fromCSVRow(row);
-      },
-      23,
-      10
-    );
-    table = new MerkleTreeTable(Vehicle.solidityTypes);
-
     // Deploy contract
     const VehicleIdFactory = await ethers.getContractFactory("VehicleId2");
     vehicles = await (
@@ -72,7 +50,7 @@ describe("VehicleId2", function () {
   }
 
   async function loadData() {
-    // Setup sample data and merklized table
+    // Setup sample data
     data = await loadCSV(
       path.resolve(__dirname, "./testdata/device_definitions.csv"),
       [
@@ -93,6 +71,7 @@ describe("VehicleId2", function () {
       10
     );
 
+    // Setup merklized table
     // Will we add rows to this table as if it were the validator receiving rows via EVM events
     table = new MerkleTreeTable(Vehicle.solidityTypes);
   }
@@ -105,7 +84,7 @@ describe("VehicleId2", function () {
 
     it("Default admin (owner) should be able to create vehicle def", async () => {
       const [admin] = accounts;
-      const vehicle = data[0];
+      const [vehicle] = data;
 
       const txn = await vehicles
         .connect(admin)
@@ -174,7 +153,7 @@ describe("VehicleId2", function () {
 
     it("Regular user should not be able to create vehicle def", async () => {
       const [, user] = accounts;
-      const vehicle = data[1];
+      const [, vehicle] = data;
 
       await expect(
         vehicles.connect(user).createVehicleDef(vehicle, table.getAppendProof())
@@ -183,7 +162,7 @@ describe("VehicleId2", function () {
 
     it("Vehicle admin should be able to create vehicle def", async () => {
       const [owner, , , vehicleAdmin] = accounts;
-      const vehicle = data[1];
+      const [, vehicle] = data;
 
       await expect(
         vehicles

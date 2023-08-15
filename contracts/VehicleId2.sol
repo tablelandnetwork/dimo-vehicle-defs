@@ -10,29 +10,42 @@ import {TablelandController, TablelandPolicy} from "@tableland/evm/contracts/Tab
 import {SQLHelpers} from "@tableland/evm/contracts/utils/SQLHelpers.sol";
 import {DynamicMerkleTree} from "./libs/DynamicMerkleTree.sol";
 
+/// @title A demo implementation of DIMO VehicleId that stores vehicle defs in a Tableland table.
+/// This version of VehicleId tracks a root hash representing a Tableland vehicle defs table,
+/// which is used to verify an inclusion proof that a vehicle def exists when associating it with a new vehicle id.
 contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
-    // Role that can add new vehicle defs.
+    /// @dev Role that can add new vehicle defs.
     bytes32 public constant VEHICLE_ADMIN_ROLE =
         keccak256("VEHICLE_ADMIN_ROLE");
-    // Row count of vehicle defs.
+    /// @dev Row count of vehicle defs.
     uint256 public numDefs;
-    // Root hash of vehicle defs table
+    /// @dev Root hash of vehicle defs table
     bytes32 public defsRoot;
 
-    // Tableland table id.
+    /// @dev Tableland table id.
     uint256 private _defsTableId;
-    // Tableland table prefix.
+    /// @dev Tableland table prefix.
     string private constant DEFS_PREFIX = "dimo_vehicle_defs";
-    // Tableland table schema.
+    /// @dev Tableland table schema.
     string private constant DEFS_SCHEMA =
         "id integer primary key, device_type_id text, make text, make_token_id integer, oem_platform_name text, model text, year integer, metadata text, model_style text, model_sub_style text";
 
-    // A mapping of vehicle ids to vehicle defs (hash of the table row)
+    /// @dev A mapping of vehicle ids to vehicle defs (Tableland table row hashes)
     mapping(uint256 => bytes32) private _idDefs;
-    // A URI used to reference off-chain table metadata.
+    /// @dev A URI used to reference off-chain table metadata.
     string private _baseURIString;
 
-    struct Vehicle {
+    /// @dev Event emitted when a new vehicle def is created.
+    /// `id` is a unique hash of the vehicle def's table row id and its params from `VehicleDef`
+    event VehicleDefCreated(bytes32 id);
+
+    /// @dev Event emitted when a new vehicle id is created.
+    /// `id` is the vehicle id (token id)
+    /// `defId` is the vehicle def id (a unique hash)
+    event VehicleIdCreated(uint256 id, bytes32 defId);
+
+    /// @dev Struct representing a vehicle def.
+    struct VehicleDef {
         string deviceTypeId;
         string make;
         uint256 makeTokenId;
@@ -45,6 +58,7 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
     }
 
     constructor(string memory baseURI) ERC721A("VehicleId", "VID") {
+        // Create a Tableland table owned by this contract to hold vehicle defs
         _defsTableId = TablelandDeployments.get().create(
             address(this),
             SQLHelpers.toCreateFromSchema(DEFS_SCHEMA, DEFS_PREFIX)
@@ -52,14 +66,19 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
 
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSenderERC721A());
         _grantRole(VEHICLE_ADMIN_ROLE, _msgSenderERC721A());
-
         _baseURIString = baseURI;
     }
 
-    event VehicleDefCreated(bytes32 id);
+    /// @dev Returns the Tableland table where vehicle defs are written.
+    function getVehicleDefsTable() external view returns (string memory) {
+        return SQLHelpers.toNameFromId(DEFS_PREFIX, _defsTableId);
+    }
 
+    /// @dev Create a new vehicle def.
+    /// `def` is an instance of `VehicleDef`
+    /// `proof` is a merkle append proof needed to update the on-chain root hash representing the Tableland vehicle defs table
     function createVehicleDef(
-        Vehicle memory vehicle,
+        VehicleDef memory def,
         bytes32[] memory proof
     ) external returns (uint256) {
         require(
@@ -67,41 +86,45 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
             "unauthorized"
         );
 
+        // Create the new vehicle def's id
         bytes32 defId = keccak256(
             abi.encodePacked(
                 numDefs + 1,
-                vehicle.deviceTypeId,
-                vehicle.make,
-                vehicle.makeTokenId,
-                vehicle.oemPlatformName,
-                vehicle.model,
-                vehicle.year,
-                vehicle.metadata,
-                vehicle.modelStyle,
-                vehicle.modelSubStyle
+                def.deviceTypeId,
+                def.make,
+                def.makeTokenId,
+                def.oemPlatformName,
+                def.model,
+                def.year,
+                def.metadata,
+                def.modelStyle,
+                def.modelSubStyle
             )
         );
-        defsRoot = DynamicMerkleTree.append(numDefs, defsRoot, defId, proof);
-        numDefs += 1;
 
+        /// Update the on-chain root hash representing the Tableland vehicle defs table
+        /// This will throw if the proof is invalid
+        defsRoot = DynamicMerkleTree.append(numDefs, defsRoot, defId, proof);
+
+        // Insert the new vehicle def into the Tableland table
         string memory vals = string.concat(
-            SQLHelpers.quote(vehicle.deviceTypeId),
+            SQLHelpers.quote(def.deviceTypeId),
             ",",
-            SQLHelpers.quote(vehicle.make),
+            SQLHelpers.quote(def.make),
             ",",
-            Strings.toString(vehicle.makeTokenId),
+            Strings.toString(def.makeTokenId),
             ",",
-            SQLHelpers.quote(vehicle.oemPlatformName),
+            SQLHelpers.quote(def.oemPlatformName),
             ",",
-            SQLHelpers.quote(vehicle.model),
+            SQLHelpers.quote(def.model),
             ",",
-            Strings.toString(vehicle.year),
+            Strings.toString(def.year),
             ",",
-            SQLHelpers.quote(vehicle.metadata),
+            SQLHelpers.quote(def.metadata),
             ",",
-            SQLHelpers.quote(vehicle.modelStyle),
+            SQLHelpers.quote(def.modelStyle),
             ",",
-            SQLHelpers.quote(vehicle.modelSubStyle)
+            SQLHelpers.quote(def.modelSubStyle)
         );
         string memory stmt = SQLHelpers.toInsert(
             DEFS_PREFIX,
@@ -111,25 +134,24 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
         );
         TablelandDeployments.get().mutate(address(this), _defsTableId, stmt);
 
+        numDefs += 1;
         emit VehicleDefCreated(defId);
-
         return numDefs;
     }
 
-    function getVehicleDefsTable() external view returns (string memory) {
-        return SQLHelpers.toNameFromId(DEFS_PREFIX, _defsTableId);
-    }
-
-    event VehicleIdCreated(uint256 id, bytes32 defId);
-
+    /// @dev Mints a new vehicle id.
+    /// `defRowId` is the Tableland vehicle defs table row id to be associated with the new vehicle id
+    /// `defId` is the vehicle def id (a unique hash) to be associated with the new vehicle id
+    /// `proof` is a merkle inclusion proof that `defId` exists in the Tableland vehicle defs table
     function createVehicleId(
-        uint256 rowId,
+        uint256 defRowId,
         bytes32 defId,
         bytes32[] memory proof
     ) external payable returns (uint256 vehicleId) {
+        // Verify inclusion proof
         require(
             DynamicMerkleTree.verify(
-                rowId - 1,
+                defRowId - 1,
                 numDefs,
                 defsRoot,
                 defId,
@@ -138,14 +160,17 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
             "vehicle def does not exist"
         );
 
+        // Mint new vehicle id
         vehicleId = _nextTokenId();
         _safeMint(_msgSenderERC721A(), 1);
 
+        // Associate vehicle id with its vehicle def
         _idDefs[vehicleId] = defId;
 
         emit VehicleIdCreated(vehicleId, defId);
     }
 
+    /// @dev Returns the vehicle def id for the given vehicle id.
     function getVehicleDefId(
         uint256 vehicleId
     ) external view returns (bytes32) {
@@ -154,6 +179,7 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
         return _idDefs[vehicleId];
     }
 
+    /// @dev Updates base URI used for vehicle ids.
     function setBaseURI(string memory baseURI) external {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, _msgSenderERC721A()),
@@ -162,14 +188,17 @@ contract VehicleId2 is ERC721A, ERC721AQueryable, AccessControl {
         _baseURIString = baseURI;
     }
 
+    /// @inheritdoc ERC721A
     function _baseURI() internal view override returns (string memory) {
         return _baseURIString;
     }
 
+    /// @inheritdoc ERC721A
     function _startTokenId() internal pure override returns (uint256) {
         return 1;
     }
 
+    /// @inheritdoc IERC721A
     function supportsInterface(
         bytes4 interfaceId
     ) public view override(ERC721A, IERC721A, AccessControl) returns (bool) {
