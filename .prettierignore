@@ -5,6 +5,6 @@ cache
 coverage*
 gasReporterOutput.json
 *.d.ts
-network.js
+deployments.js
 hardhat.config.d.ts
 scripts/*.d.ts

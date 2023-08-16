@@ -1,16 +1,15 @@
-import { run, network, address, baseURI } from "hardhat";
+import { run, network, deployment } from "hardhat";
 
 async function main() {
   console.log(`\nVerifying on '${network.name}'...`);
 
   // Ensure deployments
-  if (address === undefined || address === "") {
+  if (deployment.address === "") {
     throw Error(`no address entry for '${network.name}'`);
   }
 
   await run("verify:verify", {
-    address,
-    constructorArguments: [baseURI],
+    address: deployment.address,
   });
 }
 

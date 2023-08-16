@@ -1,5 +1,6 @@
-import { ethers, network, address, baseURI } from "hardhat";
+import { ethers, network, deployment } from "hardhat";
 import type { VehicleId } from "../typechain-types";
+import { getURITemplate } from "../helpers/uris";
 
 async function main() {
   console.log(`\nDeploying new contract to '${network.name}'...`);
@@ -10,27 +11,27 @@ async function main() {
     throw Error("missing provider");
   }
 
-  // Get base URI
-  if (baseURI === undefined || baseURI === "") {
-    throw Error(`missing baseURI entry for '${network.name}'`);
-  }
-  console.log(`Using base URI '${baseURI}'`);
-
   // Don't allow multiple deployments per network
-  if (address !== undefined && address !== "") {
+  if (deployment.address !== "") {
     throw Error(`already deployed to '${network.name}'`);
   }
 
   // Deploy contract
   const Factory = await ethers.getContractFactory("VehicleId");
-  const vehicles = await (
-    (await Factory.deploy(baseURI)) as VehicleId
-  ).deployed();
+  const vehicles = await ((await Factory.deploy()) as VehicleId).deployed();
   console.log("New contract address:", vehicles.address);
+
+  // Set URI Template
+  await vehicles.setURITemplate(
+    await getURITemplate(
+      deployment.tablelandHost,
+      await vehicles.getVehicleDefsTable()
+    )
+  );
 
   // Warn that address needs to be saved in config
   console.log(
-    `\nSave 'addresses.${network.name}: "${vehicles.address}"' in 'network.ts'!`
+    `\nSave 'deployment.${network.name}.address: "${vehicles.address}"' in 'deployments.ts'!`
   );
 }
 

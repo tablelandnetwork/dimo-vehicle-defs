@@ -6,8 +6,9 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { BigNumber } from "ethers";
 import { VehicleId } from "../typechain-types";
-import { Vehicle } from "../helpers/Vehicle";
+import { VehicleDef } from "../helpers/VehicleDef";
 import { loadCSV } from "../helpers/csv";
+import { getURITemplate } from "../helpers/uris";
 
 const lt = new LocalTableland({
   silent: true,
@@ -28,7 +29,7 @@ describe("VehicleId", function () {
   let db: Database;
   let validator: Validator;
 
-  let data: Vehicle[];
+  let data: VehicleDef[];
 
   let vehicles: VehicleId;
   let defsTableName: string;
@@ -41,10 +42,15 @@ describe("VehicleId", function () {
     // Deploy contract
     const VehicleIdFactory = await ethers.getContractFactory("VehicleId");
     vehicles = await (
-      (await VehicleIdFactory.deploy("")) as VehicleId
+      (await VehicleIdFactory.deploy()) as VehicleId
     ).deployed();
 
     defsTableName = await vehicles.getVehicleDefsTable();
+
+    // Set URI Template
+    await vehicles.setURITemplate(
+      await getURITemplate("http://localhost:8080", defsTableName)
+    );
   }
 
   async function loadData() {
@@ -63,14 +69,14 @@ describe("VehicleId", function () {
         "model_sub_style",
       ],
       (row: any) => {
-        return Vehicle.fromCSVRow(row);
+        return VehicleDef.fromCSVRow(row);
       },
       23,
       10
     );
   }
 
-  describe("createVehicleDef", () => {
+  describe("createVehicleDefs", () => {
     before(async function () {
       await loadFixture(deployFixture);
       await loadData();
@@ -80,7 +86,7 @@ describe("VehicleId", function () {
       const [admin] = accounts;
       const [vehicle] = data;
 
-      const txn = await vehicles.connect(admin).createVehicleDef(vehicle);
+      const txn = await vehicles.connect(admin).createVehicleDefs([vehicle]);
       const receipt = await txn.wait();
       const event = receipt.events?.find(
         (v) => v.event === "VehicleDefCreated"
@@ -142,7 +148,7 @@ describe("VehicleId", function () {
       const [, user] = accounts;
       const [vehicle] = data;
 
-      await expect(vehicles.connect(user).createVehicleDef(vehicle)).to.be
+      await expect(vehicles.connect(user).createVehicleDefs([vehicle])).to.be
         .rejected;
     });
 
@@ -150,15 +156,15 @@ describe("VehicleId", function () {
       const [owner, , , vehicleAdmin] = accounts;
       const [vehicle] = data;
 
-      await expect(vehicles.connect(vehicleAdmin).createVehicleDef(vehicle)).to
-        .be.rejected;
+      await expect(vehicles.connect(vehicleAdmin).createVehicleDefs([vehicle]))
+        .to.be.rejected;
 
       await vehicles
         .connect(owner)
         .grantRole(vehicles.VEHICLE_ADMIN_ROLE(), vehicleAdmin.address);
 
-      await expect(vehicles.connect(vehicleAdmin).createVehicleDef(vehicle)).not
-        .to.be.rejected;
+      await expect(vehicles.connect(vehicleAdmin).createVehicleDefs([vehicle]))
+        .not.to.be.rejected;
     });
   });
 
@@ -177,8 +183,8 @@ describe("VehicleId", function () {
       const [admin, user] = accounts;
       const [vehicle1, vehicle2] = data;
 
-      await vehicles.connect(admin).createVehicleDef(vehicle1);
-      await vehicles.connect(admin).createVehicleDef(vehicle2);
+      await vehicles.connect(admin).createVehicleDefs([vehicle1]);
+      await vehicles.connect(admin).createVehicleDefs([vehicle2]);
 
       const txn = await vehicles.connect(user).createVehicleId(2);
       const receipt = await txn.wait();

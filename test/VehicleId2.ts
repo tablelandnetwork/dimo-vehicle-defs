@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { BigNumber } from "ethers";
 import { VehicleId2 } from "../typechain-types";
 import { MerkleTreeTable } from "../helpers/TableMerkleTree";
-import { Vehicle } from "../helpers/Vehicle";
+import { VehicleDef } from "../helpers/VehicleDef";
 import { loadCSV } from "../helpers/csv";
 
 const lt = new LocalTableland({
@@ -29,7 +29,7 @@ describe("VehicleId2", function () {
   let db: Database;
   let validator: Validator;
 
-  let data: Vehicle[];
+  let data: VehicleDef[];
   let table: MerkleTreeTable;
 
   let vehicles: VehicleId2;
@@ -65,7 +65,7 @@ describe("VehicleId2", function () {
         "model_sub_style",
       ],
       (row: any) => {
-        return Vehicle.fromCSVRow(row);
+        return VehicleDef.fromCSVRow(row);
       },
       23,
       10
@@ -73,7 +73,7 @@ describe("VehicleId2", function () {
 
     // Setup merklized table
     // Will we add rows to this table as if it were the validator receiving rows via EVM events
-    table = new MerkleTreeTable(Vehicle.solidityTypes);
+    table = new MerkleTreeTable(VehicleDef.solidityTypes);
   }
 
   describe("createVehicleDef", () => {
@@ -244,14 +244,14 @@ describe("VehicleId2", function () {
           "model_sub_style",
         ],
         (row: any) => {
-          return Vehicle.fromCSVRow(row);
+          return VehicleDef.fromCSVRow(row);
         },
         0,
         3
       );
 
       // Create invalid table
-      const badTable = new MerkleTreeTable(Vehicle.solidityTypes);
+      const badTable = new MerkleTreeTable(VehicleDef.solidityTypes);
       for (let i = 0; i < badData.length; i++) {
         badTable.append(badData[i].toRow());
       }

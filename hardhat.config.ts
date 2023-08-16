@@ -8,7 +8,7 @@ import "@nomicfoundation/hardhat-chai-matchers";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "hardhat-contract-sizer";
-import { baseURIs, addresses, TablelandNetworkConfig } from "./network";
+import { deployments, Deployment, Deployments } from "./deployments";
 
 dotenv.config();
 
@@ -109,34 +109,33 @@ const config: HardhatUserConfig = {
         process.env.HARDHAT_UNLIMITED_CONTRACT_SIZE === "true",
     },
   },
-  baseURIs,
-  addresses,
+  config: {
+    deployments,
+  },
 };
+
+interface MyNetworkConfig {
+  deployments: Deployments;
+}
 
 declare module "hardhat/types/config" {
   // eslint-disable-next-line no-unused-vars
   interface HardhatUserConfig {
-    baseURIs: TablelandNetworkConfig;
-    addresses: TablelandNetworkConfig;
+    config: MyNetworkConfig;
   }
 }
 
 declare module "hardhat/types/runtime" {
   // eslint-disable-next-line no-unused-vars
   interface HardhatRuntimeEnvironment {
-    baseURI: string;
-    address: string;
+    deployment: Deployment;
   }
 }
 
 extendEnvironment((hre: HardhatRuntimeEnvironment) => {
-  // Get base URI for user-selected network
-  const uris = hre.userConfig.baseURIs as any;
-  hre.baseURI = uris[hre.network.name];
-
-  // Get address for user-selected network
-  const addresses = hre.userConfig.addresses as any;
-  hre.address = addresses[hre.network.name];
+  // Get configs for user-selected network
+  const config = hre.userConfig.config;
+  hre.deployment = (config.deployments as any)[hre.network.name];
 });
 
 export default config;

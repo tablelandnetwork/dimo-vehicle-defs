@@ -7,8 +7,8 @@ typechain-types
 abi.json
 bytecode.bin
 gobuild
-network.d*
-network.js*
+deployments.d*
+deployments.js*
 hardhat.config.d*
 hardhat.config.js*
 scripts/*.d*

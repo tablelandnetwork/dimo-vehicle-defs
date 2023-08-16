@@ -5,7 +5,7 @@ cache
 coverage
 hardhat.config.d.ts
 hardhat.config.js
-network.d.ts
-network.js
+deployments.d.ts
+deployments.js
 scripts/*.js
 scripts/*.d.ts
