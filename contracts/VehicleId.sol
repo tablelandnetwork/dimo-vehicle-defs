@@ -31,9 +31,13 @@ contract VehicleId is ERC721A, ERC721AQueryable, AccessControl, URITemplate {
     /// @dev A mapping of vehicle ids to vehicle defs (Tableland table row ids)
     mapping(uint256 => uint256) private _idDefs;
 
-    /// @dev Event emitted when a new vehicle def is created.
+    /// @dev Event emitted when new vehicle defs are created.
     /// `id` is the Tableland table row id of the vehicle def
-    event VehicleDefCreated(uint256 id);
+    event VehicleDefsCreated(uint256[] ids);
+
+    /// @dev Event emitted when a vehicle def is updated.
+    /// `id` is the Tableland table row id of the vehicle def
+    event VehicleDefUpdated(uint256 id);
 
     /// @dev Event emitted when a new vehicle id is created.
     /// `id` is the vehicle id (token id)
@@ -79,47 +83,94 @@ contract VehicleId is ERC721A, ERC721AQueryable, AccessControl, URITemplate {
 
         // Insert the new vehicle defs into the Tableland table
         uint256 len = defs.length;
-        ITablelandTables.Statement[]
-            memory stmts = new ITablelandTables.Statement[](len);
+        require(len > 0, "bad request");
+        uint256[] memory ids = new uint256[](len);
+        string[] memory vals = new string[](len);
         for (uint256 i; i < len; ) {
-            string memory vals = string.concat(
-                SQLHelpers.quote(defs[i].deviceTypeId),
-                ",",
-                SQLHelpers.quote(defs[i].make),
-                ",",
-                Strings.toString(defs[i].makeTokenId),
-                ",",
-                SQLHelpers.quote(defs[i].oemPlatformName),
-                ",",
-                SQLHelpers.quote(defs[i].model),
-                ",",
-                Strings.toString(defs[i].year),
-                ",",
-                SQLHelpers.quote(defs[i].metadata),
-                ",",
-                SQLHelpers.quote(defs[i].modelStyle),
-                ",",
-                SQLHelpers.quote(defs[i].modelSubStyle)
-            );
-            stmts[i] = ITablelandTables.Statement({
-                tableId: _defsTableId,
-                statement: SQLHelpers.toInsert(
-                    DEFS_PREFIX,
-                    _defsTableId,
-                    "device_type_id,make,make_token_id,oem_platform_name,model,year,metadata,model_style,model_sub_style",
-                    vals
-                )
-            });
-
-            emit VehicleDefCreated(numDefs + i + 1);
-
             unchecked {
+                vals[i] = string.concat(
+                    SQLHelpers.quote(defs[i].deviceTypeId),
+                    ",",
+                    SQLHelpers.quote(defs[i].make),
+                    ",",
+                    Strings.toString(defs[i].makeTokenId),
+                    ",",
+                    SQLHelpers.quote(defs[i].oemPlatformName),
+                    ",",
+                    SQLHelpers.quote(defs[i].model),
+                    ",",
+                    Strings.toString(defs[i].year),
+                    ",",
+                    SQLHelpers.quote(defs[i].metadata),
+                    ",",
+                    SQLHelpers.quote(defs[i].modelStyle),
+                    ",",
+                    SQLHelpers.quote(defs[i].modelSubStyle)
+                );
+                numDefs += 1;
+                ids[i] = numDefs;
                 ++i;
             }
         }
-        TablelandDeployments.get().mutate(address(this), stmts);
+        string memory stmt = SQLHelpers.toBatchInsert(
+            DEFS_PREFIX,
+            _defsTableId,
+            "device_type_id,make,make_token_id,oem_platform_name,model,year,metadata,model_style,model_sub_style",
+            vals
+        );
+        TablelandDeployments.get().mutate(address(this), _defsTableId, stmt);
 
-        numDefs += len;
+        emit VehicleDefsCreated(ids);
+    }
+
+    /// @dev Creates new vehicle defs.
+    /// `defs` is an array of `VehicleDef`s
+    function updateVehicleDef(uint256 defId, VehicleDef calldata def) external {
+        require(
+            hasRole(VEHICLE_ADMIN_ROLE, _msgSenderERC721A()),
+            "unauthorized"
+        );
+        // Check for vehicle def existence
+        require(numDefs > 0 && defId <= numDefs, "defId does not exist");
+
+        string memory sets = string.concat(
+            "device_type_id=",
+            SQLHelpers.quote(def.deviceTypeId),
+            ",",
+            "make=",
+            SQLHelpers.quote(def.make),
+            ",",
+            "make_token_id=",
+            Strings.toString(def.makeTokenId),
+            ",",
+            "oem_platform_name=",
+            SQLHelpers.quote(def.oemPlatformName),
+            ",",
+            "model=",
+            SQLHelpers.quote(def.model),
+            ",",
+            "year=",
+            Strings.toString(def.year),
+            ",",
+            "metadata=",
+            SQLHelpers.quote(def.metadata),
+            ",",
+            "model_style=",
+            SQLHelpers.quote(def.modelStyle),
+            ",",
+            "model_sub_style=",
+            SQLHelpers.quote(def.modelSubStyle)
+        );
+        string memory stmt = SQLHelpers.toUpdate(
+            DEFS_PREFIX,
+            _defsTableId,
+            sets,
+            string.concat("id=", Strings.toString(defId))
+        );
+
+        TablelandDeployments.get().mutate(address(this), _defsTableId, stmt);
+
+        emit VehicleDefUpdated(defId);
     }
 
     /// @dev Mints a new vehicle id.

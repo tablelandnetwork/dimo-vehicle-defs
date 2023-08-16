@@ -82,16 +82,20 @@ describe("VehicleId", function () {
       await loadData();
     });
 
-    it("Default admin (owner) should be able to create vehicle def", async () => {
+    it("Default admin (owner) should be able to create vehicle defs", async () => {
       const [admin] = accounts;
-      const [vehicle] = data;
+      const [vehicle1, vehicle2] = data;
 
-      const txn = await vehicles.connect(admin).createVehicleDefs([vehicle]);
+      const txn = await vehicles
+        .connect(admin)
+        .createVehicleDefs([vehicle1, vehicle2]);
       const receipt = await txn.wait();
       const event = receipt.events?.find(
-        (v) => v.event === "VehicleDefCreated"
+        (v) => v.event === "VehicleDefsCreated"
       );
-      expect(event?.args?.id.toString()).to.equal(BigNumber.from(1));
+      expect(event?.args?.ids[0]).to.equal(BigNumber.from(1));
+      expect(event?.args?.ids[1]).to.equal(BigNumber.from(2));
+      expect(await vehicles.numDefs()).to.equal(BigNumber.from(2));
 
       await validator.pollForReceiptByTransactionHash({
         chainId: 31337,
@@ -144,7 +148,7 @@ describe("VehicleId", function () {
       });
     });
 
-    it("Regular user should not be able to create vehicle def", async () => {
+    it("Regular user should not be able to create vehicle defs", async () => {
       const [, user] = accounts;
       const [vehicle] = data;
 
@@ -154,7 +158,7 @@ describe("VehicleId", function () {
 
     it("Vehicle admin should be able to create vehicle def", async () => {
       const [owner, , , vehicleAdmin] = accounts;
-      const [vehicle] = data;
+      const [, , vehicle] = data;
 
       await expect(vehicles.connect(vehicleAdmin).createVehicleDefs([vehicle]))
         .to.be.rejected;
@@ -164,6 +168,55 @@ describe("VehicleId", function () {
         .grantRole(vehicles.VEHICLE_ADMIN_ROLE(), vehicleAdmin.address);
 
       await expect(vehicles.connect(vehicleAdmin).createVehicleDefs([vehicle]))
+        .not.to.be.rejected;
+    });
+  });
+
+  describe("updateVehicleDef", () => {
+    before(async function () {
+      await loadFixture(deployFixture);
+      await loadData();
+    });
+
+    it("Default admin (owner) should be able to update vehicle defs", async () => {
+      const [admin] = accounts;
+      const [vehicle1, vehicle2, vehicle3] = data;
+
+      await vehicles.connect(admin).createVehicleDefs([vehicle1, vehicle2]);
+
+      const txn = await vehicles.connect(admin).updateVehicleDef(1, vehicle3);
+      const receipt = await txn.wait();
+      const event = receipt.events?.find(
+        (v) => v.event === "VehicleDefUpdated"
+      );
+      expect(event?.args?.id.toString()).to.equal(BigNumber.from(1));
+
+      await validator.pollForReceiptByTransactionHash({
+        chainId: 31337,
+        transactionHash: receipt.transactionHash,
+      });
+    });
+
+    it("Regular user should not be able to update vehicle defs", async () => {
+      const [, user] = accounts;
+      const [vehicle] = data;
+
+      await expect(vehicles.connect(user).updateVehicleDef(1, vehicle)).to.be
+        .rejected;
+    });
+
+    it("Vehicle admin should be able to update vehicle def", async () => {
+      const [owner, , , vehicleAdmin] = accounts;
+      const [, , , vehicle] = data;
+
+      await expect(vehicles.connect(vehicleAdmin).updateVehicleDef(1, vehicle))
+        .to.be.rejected;
+
+      await vehicles
+        .connect(owner)
+        .grantRole(vehicles.VEHICLE_ADMIN_ROLE(), vehicleAdmin.address);
+
+      await expect(vehicles.connect(vehicleAdmin).updateVehicleDef(1, vehicle))
         .not.to.be.rejected;
     });
   });
@@ -183,8 +236,7 @@ describe("VehicleId", function () {
       const [admin, user] = accounts;
       const [vehicle1, vehicle2] = data;
 
-      await vehicles.connect(admin).createVehicleDefs([vehicle1]);
-      await vehicles.connect(admin).createVehicleDefs([vehicle2]);
+      await vehicles.connect(admin).createVehicleDefs([vehicle1, vehicle2]);
 
       const txn = await vehicles.connect(user).createVehicleId(2);
       const receipt = await txn.wait();

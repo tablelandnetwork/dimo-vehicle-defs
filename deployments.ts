@@ -16,7 +16,7 @@ export const deployments: Deployments = {
     tablelandHost: "https://tableland.network",
   },
   maticmum: {
-    address: "0x393AeE7D67998237FA5e31D07C415727997E2a97",
+    address: "0x384516acd72c330cf49a158177098d8376dFBC82",
     tablelandHost: "https://testnets.tableland.network",
   },
   localhost: {
